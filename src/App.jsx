@@ -443,6 +443,10 @@ export default function ExamHeroPro() {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
+  const [authMode, setAuthMode] = useState("signin"); // "signin" | "forgot" | "reset"
+  const [resetToken, setResetToken] = useState(null); // kept in memory only, never saved
+  const [newPassword, setNewPassword] = useState("");
+  const [newPassword2, setNewPassword2] = useState("");
 
   const history = data.history;
   const user = data.session ? data.session.user : null;
@@ -470,6 +474,29 @@ export default function ExamHeroPro() {
   useEffect(() => {
     if (loaded) store.set(data);
   }, [data, loaded]);
+
+  /* ----- links from emails: password reset and email confirmation ----- */
+  useEffect(() => {
+    if (!cloudReady) return;
+    const h = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+    const type = h.get("type");
+    if (!h.get("access_token") && !h.get("error")) return;
+    if (type === "recovery" && h.get("access_token")) {
+      setResetToken(h.get("access_token"));
+      setAuthMode("reset");
+      setScreen("account");
+    } else if (h.get("error")) {
+      setAuthMode("forgot");
+      setScreen("account");
+      setMsg("That link has expired or was already used. To reset your password, enter your email below to get a new link.");
+    } else {
+      setScreen("account");
+      setMsg("Email confirmed. You can sign in now.");
+    }
+    // remove the secret token from the address bar
+    window.history.replaceState({}, "", window.location.pathname + window.location.search);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   /* ----- after load: finish a payment return, then pull cloud data ----- */
   useEffect(() => {
@@ -616,6 +643,44 @@ export default function ExamHeroPro() {
       setPassword("");
       setMsg("Signed in.");
       await afterLogin(ns);
+    } catch (e) { setMsg(e.message); }
+    setBusy(false);
+  };
+
+  const sendReset = async () => {
+    if (!email.trim()) { setMsg("Type the email you signed up with."); return; }
+    setBusy(true); setMsg("");
+    try {
+      const r = await fetch(`${CONFIG.SUPABASE_URL}/auth/v1/recover?redirect_to=${encodeURIComponent(window.location.origin)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", apikey: CONFIG.SUPABASE_ANON_KEY },
+        body: JSON.stringify({ email: email.trim() }),
+      });
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}));
+        throw new Error(j.msg || j.error_description || j.message || "Could not send the email. Try again later.");
+      }
+      // Same message whether or not the email has an account, so nobody can use this to find out who has one.
+      setMsg("If that email has an account, a reset link is on its way. Check your inbox and spam folder. The link works once and expires soon.");
+    } catch (e) { setMsg(e.message); }
+    setBusy(false);
+  };
+
+  const saveNewPassword = async () => {
+    if (newPassword.length < 6) { setMsg("Choose a password of at least 6 characters."); return; }
+    if (newPassword !== newPassword2) { setMsg("The two passwords don't match."); return; }
+    setBusy(true); setMsg("");
+    try {
+      const r = await fetch(`${CONFIG.SUPABASE_URL}/auth/v1/user`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", apikey: CONFIG.SUPABASE_ANON_KEY, Authorization: `Bearer ${resetToken}` },
+        body: JSON.stringify({ password: newPassword }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.msg || j.error_description || j.message || "Could not change the password. The link may have expired: ask for a new one.");
+      setResetToken(null); setNewPassword(""); setNewPassword2("");
+      setAuthMode("signin");
+      setMsg("Password changed. Sign in with your new password.");
     } catch (e) { setMsg(e.message); }
     setBusy(false);
   };
@@ -1049,6 +1114,17 @@ export default function ExamHeroPro() {
         <div style={shell}>
           <h1 style={{ fontSize: 28, fontWeight: 800, margin: "6px 0 18px", letterSpacing: -0.4 }}>{premium ? "Premium" : "Account"}</h1>
 
+          {cloudReady && authMode === "reset" && resetToken && (
+            <Card style={{ border: `1.5px solid ${C.gold}` }}>
+              <div style={{ fontWeight: 800, fontSize: 17, marginBottom: 6 }}>Set a new password</div>
+              <div style={{ color: C.mute, fontSize: 14, lineHeight: 1.45, marginBottom: 12 }}>Choose a new password for your account.</div>
+              <input type="password" aria-label="New password" autoComplete="new-password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="New password (6+ characters)" style={inputStyle} />
+              <input type="password" aria-label="Repeat new password" autoComplete="new-password" value={newPassword2} onChange={(e) => setNewPassword2(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") saveNewPassword(); }} placeholder="Repeat the new password" style={inputStyle} />
+              <button onClick={saveNewPassword} disabled={busy} style={primaryBtn(busy)}>Save new password</button>
+              {msg && <div style={{ marginTop: 12, fontSize: 14, lineHeight: 1.45, color: C.gold }}>{msg}</div>}
+            </Card>
+          )}
+
           <Card>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
               <User size={20} color={C.gold} />
@@ -1065,7 +1141,15 @@ export default function ExamHeroPro() {
                 <button onClick={signOut} style={{ ...pill(false), display: "flex", alignItems: "center", gap: 6 }}><LogOut size={15} /> Sign out</button>
               </>
             )}
-            {cloudReady && !user && (
+            {cloudReady && !user && authMode === "forgot" && (
+              <>
+                <div style={{ color: C.mute, fontSize: 14, lineHeight: 1.45, marginBottom: 12 }}>Enter the email you signed up with and we'll send you a link to choose a new password.</div>
+                <input type="email" aria-label="Email address" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") sendReset(); }} placeholder="Email address" style={inputStyle} />
+                <button onClick={sendReset} disabled={busy} style={primaryBtn(busy)}>Send reset link</button>
+                <button onClick={() => { setAuthMode("signin"); setMsg(""); }} style={{ marginTop: 10, width: "100%", padding: 10, background: "none", border: "none", color: C.mute, fontSize: 14, fontFamily: FONT, cursor: "pointer" }}>Back to sign in</button>
+              </>
+            )}
+            {cloudReady && !user && authMode !== "forgot" && authMode !== "reset" && (
               <>
                 <input type="email" aria-label="Email address" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email address" style={inputStyle} />
                 <input type="password" aria-label="Password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") signIn(); }} placeholder="Password (6+ characters)" style={inputStyle} />
@@ -1073,9 +1157,10 @@ export default function ExamHeroPro() {
                   <button onClick={signIn} disabled={busy} style={{ ...primaryBtn(busy), flex: 1 }}>Sign in</button>
                   <button onClick={signUp} disabled={busy} style={{ flex: 1, padding: 15, borderRadius: 12, border: `2px solid ${C.line}`, background: "transparent", color: C.ivory, fontWeight: 800, fontSize: 16, fontFamily: FONT, cursor: "pointer" }}>Create account</button>
                 </div>
+                <button onClick={() => { setAuthMode("forgot"); setMsg(""); }} style={{ marginTop: 10, width: "100%", padding: 10, background: "none", border: "none", color: C.gold, fontSize: 14, fontWeight: 700, fontFamily: FONT, cursor: "pointer" }}>Forgot password?</button>
               </>
             )}
-            {msg && <div style={{ marginTop: 12, fontSize: 14, lineHeight: 1.45, color: C.gold }}>{msg}</div>}
+            {msg && !(authMode === "reset" && resetToken) && <div style={{ marginTop: 12, fontSize: 14, lineHeight: 1.45, color: C.gold }}>{msg}</div>}
           </Card>
 
           <Card style={{ border: `1.5px solid ${C.gold}` }}>
