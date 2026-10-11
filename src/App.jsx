@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import {
   GraduationCap, Clock, Trophy, Check, X, ChevronRight, Sparkles, BookOpen,
   Calculator, FlaskConical, Globe, Loader2, RotateCcw, Home, BarChart3, Target,
-  Crown, Lock, User, LogOut,
+  Crown, Lock, User, LogOut, ArrowLeft, Trash2,
 } from "lucide-react";
 
 /* =====================================================================
@@ -16,6 +16,12 @@ const CONFIG = {
   SUPABASE_ANON_KEY: "",     // the public "anon" key from Supabase (safe to expose)
   API_BASE: "",              // "" = same website (correct for Vercel)
   DEV_PREVIEW_PREMIUM: true, // lets you TRY premium screens without paying. Ignored automatically when USE_BACKEND is true.
+  LEGAL: {
+    BUSINESS_NAME: "ExamHero Pro", // your name or your registered business name
+    CONTACT_EMAIL: "",             // REQUIRED before launch: an email address students can write to
+    REFUND_DAYS: 3,                // days after paying that a student may ask for a refund
+    UPDATED: "11 October 2026",    // change this date whenever you edit the legal text
+  },
 };
 
 // Display prices only. The real prices live on the server in api/_lib.js.
@@ -282,6 +288,80 @@ const mergeHistory = (a, b) => {
     .slice(0, 200);
 };
 
+/* ---------------------------------------------------------------------
+   LEGAL TEXT (Privacy Policy, Terms of Use, Refund Policy).
+   This is a plain-English TEMPLATE that describes how this app really works.
+   Have a Nigerian lawyer review it before you take real payments, and edit it
+   if you change providers (Supabase, Vercel, Paystack, Anthropic) or add ads.
+   --------------------------------------------------------------------- */
+const buildLegal = (L) => {
+  const who = L.BUSINESS_NAME;
+  const mail = L.CONTACT_EMAIL || "[set CONTACT_EMAIL in src/App.jsx]";
+  return {
+    privacy: {
+      title: "Privacy Policy",
+      sections: [
+        { h: "Who we are", p: [`${who} ("we", "us") runs the ExamHero Pro app, a practice tool for students preparing for WAEC, NECO, JAMB and similar exams.`, `Questions about your data: ${mail}`] },
+        { h: "What we collect", p: [
+          "• Account details: your email address and a password. The password is kept only in scrambled (hashed) form by our account provider, so we cannot read it.",
+          "• Practice results: your scores, the subject and exam mode you practised, the date, and which questions you have already seen. These are saved on your phone. If you have an account they are also saved in our database so you can use them on another phone.",
+          "• Payments: payments are handled by Paystack. We receive a payment reference, the plan, the amount and whether it succeeded. We never see or store your card or bank details.",
+          "• AI topic practice (Premium): the topic you type is sent to our AI provider so it can write practice questions. Please do not type personal information there.",
+          "• Technical information: our hosting and database providers may record standard technical details, such as your IP address and device type, to keep the service running and secure.",
+        ] },
+        { h: "What we do not do", p: ["We do not sell your personal data. The app currently contains no advertising trackers. If we add advertising in future, we will update this policy first and ask for your consent where the law requires it. We do not send marketing emails."] },
+        { h: "How we use your data", p: [
+          "• To create and secure your account, and to send password-reset and confirmation emails.",
+          "• To save your progress and show it to you.",
+          "• To switch on and manage Premium after a payment.",
+          "• To prevent abuse, fix problems and answer your messages.",
+        ] },
+        { h: "Who we share it with", p: ["We use these service providers to run ExamHero Pro. They handle data on our behalf: Supabase (accounts and database), Vercel (hosting), Paystack (payments) and Anthropic (AI question writing). Some of them store or process data outside Nigeria. We share only what each one needs to do its job."] },
+        { h: "How long we keep it", p: ["We keep your account and progress until you delete your account. When you delete it, your email, login and scores are permanently removed. We keep a record of each payment (reference, plan, amount and date) without your identity, so we can deal with disputes and meet accounting duties. Scores saved only on your phone can be erased from the Account screen at any time."] },
+        { h: "Your rights", p: [`You can ask to see, correct or delete your personal data, to object to how we use it, and to withdraw your consent. To delete your account yourself, open Account and tap Delete my account. For anything else, contact ${mail}. You also have the right to complain to the Nigeria Data Protection Commission.`] },
+        { h: "Students under 18", p: ["Many ExamHero Pro users are secondary-school students. If you are under 18, please use the app with the knowledge and permission of a parent or guardian. We collect only what is needed to run the app. A parent or guardian can contact us to have a child's account and data deleted."] },
+        { h: "Security", p: ["We use well-known providers and standard protections such as encrypted connections. No online service is 100% secure, so please keep your password private."] },
+        { h: "Changes", p: ["If we change this policy, we will post the new version in the app with a new date."] },
+      ],
+    },
+    terms: {
+      title: "Terms of Use",
+      sections: [
+        { h: "About ExamHero Pro", p: ["ExamHero Pro is a practice tool. It is not connected to, or endorsed by, WAEC, NECO, JAMB or any exam board. The questions are original practice questions written for this app, not official past papers. Using the app does not guarantee any exam result."] },
+        { h: "Your account", p: ["Give a correct email address and keep your password private. You are responsible for what happens on your account. One account is for one person, so please do not share it. If you are under 18, use the app with the permission of a parent or guardian."] },
+        { h: "Free and Premium", p: [
+          `• Free use includes up to ${FREE_ROUNDS_PER_DAY} practice rounds a day, with 5 questions in each.`,
+          "• Premium unlocks unlimited rounds, longer rounds, AI topic practice and the exam breakdown, for the period you paid for (30 or 90 days). Premium does not renew by itself. You choose whether to pay again.",
+          "• Prices are shown in naira before you pay. A price change never affects time you have already paid for.",
+        ] },
+        { h: "Payments", p: [`Payments are made through Paystack. Premium is switched on once your payment is confirmed, usually within moments. If you paid but Premium is not active, contact ${mail} with your payment reference.`] },
+        { h: "Fair use", p: ["Please do not: copy, resell or republish our questions or content; use automated tools to collect them; share a paid account to avoid paying; use the AI feature to create harmful or unlawful content; or try to break or overload the service."] },
+        { h: "AI-written questions", p: ["AI practice questions can contain mistakes. Check important answers against your textbook or teacher."] },
+        { h: "Our content", p: [`The app, its design and its questions belong to ${who}. You may use them for your own personal study only.`] },
+        { h: "Changes and availability", p: ["We may update or pause features. We do our best to keep the app running, but we cannot promise it will always be available or free of errors."] },
+        { h: "Our responsibility", p: [`The app is provided as it is. As far as the law allows, ${who} is not responsible for indirect losses or for your exam results, and our total responsibility for any claim is limited to the amount you paid us in the last 12 months. Nothing here limits any right you have under Nigerian law that cannot be limited.`] },
+        { h: "Ending", p: ["You can stop using the app and delete your account at any time. We may suspend accounts that break these terms."] },
+        { h: "Governing law", p: ["These terms are governed by the laws of the Federal Republic of Nigeria."] },
+        { h: "Contact", p: [mail] },
+      ],
+    },
+    refund: {
+      title: "Refund Policy",
+      sections: [
+        { h: "How Premium works", p: ["Premium is a digital service that starts as soon as your payment is confirmed."] },
+        { h: "When we refund", p: [
+          "• If you were charged but Premium did not switch on and we cannot fix it, we will refund you in full.",
+          "• If you were charged twice for the same plan, we will refund the extra payment.",
+          `• If you change your mind, contact us within ${L.REFUND_DAYS} days of paying, before you have made much use of Premium, and we will consider a refund.`,
+        ] },
+        { h: "How to ask", p: [`Email ${mail} with the email address of your account and your Paystack payment reference. We will reply as soon as we can.`] },
+        { h: "How refunds are paid", p: ["Approved refunds go back to the original payment method through Paystack. Your bank may take several days to show the money."] },
+        { h: "Account deletion", p: ["Deleting your account ends Premium. It does not by itself earn a refund for unused time."] },
+      ],
+    },
+  };
+};
+
 const INITIAL_DATA = { history: [], daily: { date: "", rounds: 0 }, session: null, premiumUntil: null, historyOwner: null, devPremium: false, seen: {} };
 
 /* ---------------- saving on the device ----------------
@@ -447,6 +527,13 @@ export default function ExamHeroPro() {
   const [resetToken, setResetToken] = useState(null); // kept in memory only, never saved
   const [newPassword, setNewPassword] = useState("");
   const [newPassword2, setNewPassword2] = useState("");
+  const [legalDoc, setLegalDoc] = useState("privacy");
+  const [legalBack, setLegalBack] = useState("account");
+  const [agreeStep, setAgreeStep] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleteText, setDeleteText] = useState("");
+  const [confirmErase, setConfirmErase] = useState(false);
+  const [dataMsg, setDataMsg] = useState("");
 
   const history = data.history;
   const user = data.session ? data.session.user : null;
@@ -474,6 +561,20 @@ export default function ExamHeroPro() {
   useEffect(() => {
     if (loaded) store.set(data);
   }, [data, loaded]);
+
+  /* ----- public legal links: yoursite/?page=privacy | terms | refund ----- */
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const page = params.get("page");
+    if (["privacy", "terms", "refund"].includes(page)) {
+      setLegalDoc(page);
+      setLegalBack("home");
+      setScreen("legal");
+      params.delete("page");
+      const qs = params.toString();
+      window.history.replaceState({}, "", window.location.pathname + (qs ? "?" + qs : "") + window.location.hash);
+    }
+  }, []);
 
   /* ----- links from emails: password reset and email confirmation ----- */
   useEffect(() => {
@@ -615,8 +716,16 @@ export default function ExamHeroPro() {
     if (merged && merged.length) await syncUp(merged);
   };
 
-  const signUp = async () => {
+  const startSignUp = () => {
     if (!email.trim() || password.length < 6) { setMsg("Enter your email and a password of at least 6 characters."); return; }
+    setMsg("");
+    setAgreeStep(true);
+  };
+
+  const openLegal = (doc, back) => { setLegalDoc(doc); setLegalBack(back || "account"); setScreen("legal"); };
+
+  const signUp = async () => {
+    setAgreeStep(false);
     setBusy(true); setMsg("");
     try {
       const j = await authCall("signup", { email: email.trim(), password });
@@ -645,6 +754,35 @@ export default function ExamHeroPro() {
       await afterLogin(ns);
     } catch (e) { setMsg(e.message); }
     setBusy(false);
+  };
+
+  const deleteAccount = async () => {
+    if (deleteText.trim().toUpperCase() !== "DELETE") return;
+    setBusy(true); setDataMsg("");
+    try {
+      const token = await getToken();
+      if (!token) throw new Error("Please sign in again, then try once more.");
+      const r = await fetch(`${CONFIG.API_BASE}/api/delete-account`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ confirm: "DELETE" }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error || "Could not delete the account. Try again, or contact support.");
+      updateSession(null);
+      setPremiumOk(false);
+      commit((d) => ({ ...d, premiumUntil: null, history: [], historyOwner: null, seen: {} }));
+      setConfirmDelete(false); setDeleteText(""); setDataMsg("");
+      setMsg("Your account and scores have been permanently deleted.");
+    } catch (e) { setDataMsg(e.message); }
+    setBusy(false);
+  };
+
+  const eraseLocal = () => {
+    if (!confirmErase) { setConfirmErase(true); return; }
+    commit((d) => ({ ...d, history: [], seen: {} }));
+    setConfirmErase(false);
+    setDataMsg(user ? "Scores erased from this phone. Your account copy is kept; they return next time you sign in." : "Scores erased from this phone.");
   };
 
   const sendReset = async () => {
@@ -1017,6 +1155,37 @@ export default function ExamHeroPro() {
     </div>
   );
 
+  /* ---------- LEGAL ---------- */
+  if (screen === "legal") {
+    const docs = buildLegal(CONFIG.LEGAL);
+    const doc = docs[legalDoc] || docs.privacy;
+    return (
+      <div style={base}>
+        <div style={shell}>
+          <button onClick={() => setScreen(legalBack)} aria-label="Back" style={{ background: "none", border: "none", color: C.mute, cursor: "pointer", padding: 6, marginLeft: -6 }}>
+            <ArrowLeft size={24} />
+          </button>
+          <h1 style={{ fontSize: 28, fontWeight: 800, margin: "6px 0 4px", letterSpacing: -0.4 }}>{doc.title}</h1>
+          <div style={{ fontSize: 13, color: C.mute, marginBottom: 20 }}>Last updated: {CONFIG.LEGAL.UPDATED}</div>
+          {doc.sections.map((sec) => (
+            <div key={sec.h} style={{ marginBottom: 18 }}>
+              <h2 style={{ fontSize: 17, fontWeight: 800, margin: "0 0 6px", color: C.gold }}>{sec.h}</h2>
+              {sec.p.map((t, i) => (
+                <p key={i} style={{ fontSize: 15, lineHeight: 1.55, margin: "0 0 8px", color: C.ivory, paddingLeft: t.startsWith("• ") ? 6 : 0 }}>{t}</p>
+              ))}
+            </div>
+          ))}
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+            {[["privacy", "Privacy Policy"], ["terms", "Terms of Use"], ["refund", "Refund Policy"]].filter(([id]) => id !== legalDoc).map(([id, label]) => (
+              <button key={id} onClick={() => setLegalDoc(id)} style={pill(false)}>{label}</button>
+            ))}
+          </div>
+        </div>
+        {globalCss}
+      </div>
+    );
+  }
+
   /* ---------- PROGRESS ---------- */
   if (screen === "progress") {
     const totalAnswered = history.reduce((s, h) => s + h.total, 0);
@@ -1149,13 +1318,27 @@ export default function ExamHeroPro() {
                 <button onClick={() => { setAuthMode("signin"); setMsg(""); }} style={{ marginTop: 10, width: "100%", padding: 10, background: "none", border: "none", color: C.mute, fontSize: 14, fontFamily: FONT, cursor: "pointer" }}>Back to sign in</button>
               </>
             )}
-            {cloudReady && !user && authMode !== "forgot" && authMode !== "reset" && (
+            {cloudReady && !user && authMode !== "forgot" && authMode !== "reset" && agreeStep && (
+              <>
+                <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 6 }}>One last step</div>
+                <div style={{ color: C.mute, fontSize: 14, lineHeight: 1.5, marginBottom: 12 }}>
+                  By creating an account you agree to the{" "}
+                  <button onClick={() => openLegal("terms")} style={{ background: "none", border: "none", color: C.gold, fontWeight: 700, fontFamily: FONT, fontSize: 14, cursor: "pointer", padding: 0, textDecoration: "underline" }}>Terms of Use</button>
+                  {" "}and the{" "}
+                  <button onClick={() => openLegal("privacy")} style={{ background: "none", border: "none", color: C.gold, fontWeight: 700, fontFamily: FONT, fontSize: 14, cursor: "pointer", padding: 0, textDecoration: "underline" }}>Privacy Policy</button>.
+                  {" "}If you are under 18, please make sure a parent or guardian is happy for you to use ExamHero Pro.
+                </div>
+                <button onClick={signUp} disabled={busy} style={primaryBtn(busy)}>I agree, create my account</button>
+                <button onClick={() => setAgreeStep(false)} style={{ marginTop: 10, width: "100%", padding: 10, background: "none", border: "none", color: C.mute, fontSize: 14, fontFamily: FONT, cursor: "pointer" }}>Cancel</button>
+              </>
+            )}
+            {cloudReady && !user && authMode !== "forgot" && authMode !== "reset" && !agreeStep && (
               <>
                 <input type="email" aria-label="Email address" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email address" style={inputStyle} />
                 <input type="password" aria-label="Password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") signIn(); }} placeholder="Password (6+ characters)" style={inputStyle} />
                 <div style={{ display: "flex", gap: 10 }}>
                   <button onClick={signIn} disabled={busy} style={{ ...primaryBtn(busy), flex: 1 }}>Sign in</button>
-                  <button onClick={signUp} disabled={busy} style={{ flex: 1, padding: 15, borderRadius: 12, border: `2px solid ${C.line}`, background: "transparent", color: C.ivory, fontWeight: 800, fontSize: 16, fontFamily: FONT, cursor: "pointer" }}>Create account</button>
+                  <button onClick={startSignUp} disabled={busy} style={{ flex: 1, padding: 15, borderRadius: 12, border: `2px solid ${C.line}`, background: "transparent", color: C.ivory, fontWeight: 800, fontSize: 16, fontFamily: FONT, cursor: "pointer" }}>Create account</button>
                 </div>
                 <button onClick={() => { setAuthMode("forgot"); setMsg(""); }} style={{ marginTop: 10, width: "100%", padding: 10, background: "none", border: "none", color: C.gold, fontSize: 14, fontWeight: 700, fontFamily: FONT, cursor: "pointer" }}>Forgot password?</button>
               </>
@@ -1214,6 +1397,41 @@ export default function ExamHeroPro() {
               </button>
             )}
           </Card>
+
+          <Card>
+            <div style={{ fontWeight: 800, fontSize: 17, marginBottom: 6 }}>Your data</div>
+            <div style={{ color: C.mute, fontSize: 14, lineHeight: 1.5, marginBottom: 12 }}>
+              Your scores are saved on this phone{cloudReady ? ", and in your account if you are signed in" : ""}.
+            </div>
+            <button onClick={eraseLocal} style={{ ...pill(confirmErase), width: "100%", borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+              <Trash2 size={16} /> {confirmErase ? "Tap again to erase scores on this phone" : "Erase scores from this phone"}
+            </button>
+            {cloudReady && user && !confirmDelete && (
+              <button onClick={() => { setConfirmDelete(true); setDataMsg(""); }} style={{ marginTop: 10, width: "100%", padding: 12, borderRadius: 12, border: `1.5px solid ${C.bad}`, background: "transparent", color: C.bad, fontWeight: 700, fontSize: 15, fontFamily: FONT, cursor: "pointer" }}>
+                Delete my account
+              </button>
+            )}
+            {cloudReady && user && confirmDelete && (
+              <div style={{ marginTop: 12, padding: 14, borderRadius: 12, border: `1.5px solid ${C.bad}` }}>
+                <div style={{ fontWeight: 800, color: C.bad, marginBottom: 6 }}>This cannot be undone</div>
+                <div style={{ fontSize: 14, lineHeight: 1.5, color: C.ivory, marginBottom: 10 }}>
+                  Your email, login and saved scores will be deleted for good, and any Premium time left ends without a refund. Type DELETE to confirm.
+                </div>
+                <input aria-label="Type DELETE to confirm" value={deleteText} onChange={(e) => setDeleteText(e.target.value)} placeholder="DELETE" style={inputStyle} />
+                <button onClick={deleteAccount} disabled={busy || deleteText.trim().toUpperCase() !== "DELETE"} style={{ ...primaryBtn(busy || deleteText.trim().toUpperCase() !== "DELETE"), background: busy || deleteText.trim().toUpperCase() !== "DELETE" ? C.line : C.bad, color: busy || deleteText.trim().toUpperCase() !== "DELETE" ? C.mute : C.night }}>
+                  Permanently delete my account
+                </button>
+                <button onClick={() => { setConfirmDelete(false); setDeleteText(""); }} style={{ marginTop: 8, width: "100%", padding: 10, background: "none", border: "none", color: C.mute, fontSize: 14, fontFamily: FONT, cursor: "pointer" }}>Cancel</button>
+              </div>
+            )}
+            {dataMsg && <div style={{ marginTop: 12, fontSize: 14, lineHeight: 1.45, color: C.gold }}>{dataMsg}</div>}
+          </Card>
+
+          <div style={{ display: "flex", gap: 14, flexWrap: "wrap", justifyContent: "center", margin: "6px 0 10px" }}>
+            {[["privacy", "Privacy Policy"], ["terms", "Terms of Use"], ["refund", "Refund Policy"]].map(([id, label]) => (
+              <button key={id} onClick={() => openLegal(id)} style={{ background: "none", border: "none", color: C.mute, fontSize: 13, fontFamily: FONT, textDecoration: "underline", cursor: "pointer", padding: 4 }}>{label}</button>
+            ))}
+          </div>
         </div>
         {nav}
         {globalCss}
