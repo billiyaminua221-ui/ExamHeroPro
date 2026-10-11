@@ -14,7 +14,7 @@ create table if not exists subscriptions (
 
 create table if not exists payments (
   reference text primary key,            -- Paystack reference; unique so one payment can only be used once
-  user_id uuid not null references auth.users(id) on delete cascade,
+  user_id uuid references auth.users(id) on delete set null,   -- kept (without identity) if the student deletes their account
   plan text not null,
   amount integer not null,               -- in kobo
   created_at timestamptz not null default now()
