@@ -268,6 +268,19 @@ const pickFresh = (questions, n, seenList) => {
   return { items: prepare(picked, picked.length), seen: nextSeen };
 };
 
+// JAMB-style mock exam: Use of English first, then the other subjects, each marked out of 100 (400 in all).
+const MOCK_ORDER = ["english", "math", "science", "general"];
+const MOCK_PER_SUBJECT = 10;
+const mockStats = (items, answers) => {
+  const parts = MOCK_ORDER.map((id) => {
+    const name = SUBJECTS.find((x) => x.id === id).name;
+    const rows = items.map((it, i) => ({ it, i })).filter((r) => r.it.sid === id);
+    const correct = rows.filter((r) => answers[r.i] === r.it.a).length;
+    return { id, name, correct, total: rows.length, points: rows.length ? Math.round((correct / rows.length) * 100) : 0 };
+  });
+  return { parts, total: parts.reduce((a, p) => a + p.points, 0) };
+};
+
 const todayKey = () => {
   const d = new Date();
   return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
@@ -331,7 +344,7 @@ const buildLegal = (L) => {
         { h: "Your account", p: ["Give a correct email address and keep your password private. You are responsible for what happens on your account. One account is for one person, so please do not share it. If you are under 18, use the app with the permission of a parent or guardian."] },
         { h: "Free and Premium", p: [
           `• Free use includes up to ${FREE_ROUNDS_PER_DAY} practice rounds a day, with 5 questions in each.`,
-          "• Premium unlocks unlimited rounds, longer rounds, AI topic practice and the exam breakdown, for the period you paid for (30 or 90 days). Premium does not renew by itself. You choose whether to pay again.",
+          "• Premium unlocks unlimited rounds, longer rounds, AI topic practice, the JAMB mock exam and the exam breakdown, for the period you paid for (30 or 90 days). Premium does not renew by itself. You choose whether to pay again.",
           "• Prices are shown in naira before you pay. A price change never affects time you have already paid for.",
         ] },
         { h: "Payments", p: [`Payments are made through Paystack. Premium is switched on once your payment is confirmed, usually within moments. If you paid but Premium is not active, contact ${mail} with your payment reference.`] },
@@ -874,8 +887,8 @@ export default function ExamHeroPro() {
   };
 
   /* ----- starting practice ----- */
-  const start = (name, subjectId, items, examId, timedFlag) => {
-    setSession({ name, subjectId, examId, items, timed: timedFlag });
+  const start = (name, subjectId, items, examId, timedFlag, mock) => {
+    setSession({ name, subjectId, examId, items, timed: timedFlag, mock: !!mock });
     setIdx(0);
     setPicked(null);
     setAnswers([]);
@@ -899,6 +912,23 @@ export default function ExamHeroPro() {
     const { items, seen } = pickFresh(s.questions, n, (dataRef.current.seen && dataRef.current.seen[s.id]) || []);
     commit((d) => ({ ...d, seen: { ...(d.seen || {}), [s.id]: seen } }));
     start(label, s.id, items, exam, EXAMS[exam].forceTimer || timed);
+  };
+
+  const startMock = () => {
+    if (!premium) {
+      setGate({ title: "Premium feature", text: "The JAMB mock exam covers all four subjects, 30 seconds per question, and is scored out of 400. It is included with Premium." });
+      return;
+    }
+    const seenAll = { ...(dataRef.current.seen || {}) };
+    const items = [];
+    MOCK_ORDER.forEach((id) => {
+      const subj = SUBJECTS.find((x) => x.id === id);
+      const picked = pickFresh(subj.questions, MOCK_PER_SUBJECT, seenAll[id] || []);
+      seenAll[id] = picked.seen;
+      picked.items.forEach((it) => items.push({ ...it, sid: id }));
+    });
+    commit((d) => ({ ...d, seen: seenAll }));
+    start("JAMB Mock", "mock", items, "jamb", true, true);
   };
 
   const startCustom = async () => {
@@ -936,7 +966,7 @@ export default function ExamHeroPro() {
       setLeft(TIME); deadlineRef.current = Date.now() + TIME * 1000;
     } else {
       const score = answers.filter((a, i) => a === session.items[i].a).length;
-      const record = { name: session.name, subjectId: session.subjectId, examId: session.examId, score, total: session.items.length, at: new Date().toISOString() };
+      const record = { name: session.name, subjectId: session.subjectId, examId: session.examId, score, total: session.items.length, at: new Date().toISOString(), ...(session.mock ? { mockScore: mockStats(session.items, answers).total } : {}) };
       const newHistory = mergeHistory([record], history);
       commit((d) => ({ ...d, history: newHistory }));
       syncUp(newHistory);
@@ -993,7 +1023,7 @@ export default function ExamHeroPro() {
             ))}
           </div>
           <div style={{ fontSize: 13, color: C.mute, marginBottom: 22 }}>
-            Question {idx + 1} of {session.items.length}
+            {session.mock && item.sid ? `${SUBJECTS.find((x) => x.id === item.sid).name} · ` : ""}Question {idx + 1} of {session.items.length}
           </div>
 
           <h2 style={{ fontSize: 24, lineHeight: 1.3, fontWeight: 800, margin: "0 0 24px", letterSpacing: -0.3 }}>{item.q}</h2>
@@ -1067,6 +1097,7 @@ export default function ExamHeroPro() {
     const pct = Math.round((score / total) * 100);
     const verdict = pct >= 80 ? "You're exam ready on this topic." : pct >= 50 ? "Solid base. Review the misses below." : "Needs more practice. Start with the misses below.";
     const missed = session.items.map((it, i) => ({ it, a: answers[i] })).filter((x) => x.a !== x.it.a);
+    const mock = session.mock ? mockStats(session.items, answers) : null;
 
     return (
       <div style={base}>
@@ -1079,12 +1110,36 @@ export default function ExamHeroPro() {
             <div style={{ color: C.mute, marginTop: 4, fontSize: 13 }}>Saved to your progress</div>
           </div>
 
+          {mock && (
+            <div style={{ marginTop: 20, padding: 18, borderRadius: 16, background: C.panel, border: `1.5px solid ${C.gold}` }}>
+              <div style={{ display: "flex", alignItems: "baseline", justifyContent: "center", gap: 8 }}>
+                <span style={{ fontSize: 44, fontWeight: 800, color: C.gold, lineHeight: 1 }}>{mock.total}</span>
+                <span style={{ fontSize: 20, fontWeight: 700, color: C.mute }}>/ 400</span>
+              </div>
+              <div style={{ textAlign: "center", fontSize: 13, color: C.mute, margin: "6px 0 14px" }}>JAMB-style practice score</div>
+              {mock.parts.map((pt) => (
+                <div key={pt.id} style={{ marginBottom: 10 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, marginBottom: 4 }}>
+                    <span style={{ fontWeight: 700 }}>{pt.name}</span>
+                    <span style={{ color: C.mute }}>{pt.points} / 100 ({pt.correct}/{pt.total})</span>
+                  </div>
+                  <div style={{ height: 8, borderRadius: 4, background: C.line }}>
+                    <div style={{ width: `${pt.points}%`, height: "100%", borderRadius: 4, background: pt.points >= 70 ? C.good : C.gold }} />
+                  </div>
+                </div>
+              ))}
+              <div style={{ fontSize: 12, color: C.mute, marginTop: 10, lineHeight: 1.45 }}>
+                This mock is shorter than the real exam. It is practice, not a prediction of your real JAMB score.
+              </div>
+            </div>
+          )}
+
           <div style={{ display: "flex", gap: 10, margin: "24px 0" }}>
             <button
-              onClick={() => start(session.name, session.subjectId, prepare(session.items, session.items.length), session.examId, session.timed)}
+              onClick={() => (session.mock ? startMock() : start(session.name, session.subjectId, prepare(session.items, session.items.length), session.examId, session.timed))}
               style={{ ...primaryBtn(false), flex: 1, borderRadius: 14, gap: 8 }}
             >
-              <RotateCcw size={18} /> Try again
+              <RotateCcw size={18} /> {session.mock ? "Another mock" : "Try again"}
             </button>
             <button
               onClick={() => setScreen("home")}
@@ -1234,7 +1289,7 @@ export default function ExamHeroPro() {
 
               <h3 style={{ fontSize: 17, fontWeight: 800, margin: "0 0 10px" }}>Accuracy by subject</h3>
               <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 24 }}>
-                {[...SUBJECTS, { id: "custom", name: "AI topics" }].map((s) => bar(s.name, history.filter((h) => h.subjectId === s.id)))}
+                {[...SUBJECTS, { id: "custom", name: "AI topics" }, { id: "mock", name: "JAMB mocks" }].map((s) => bar(s.name, history.filter((h) => h.subjectId === s.id)))}
               </div>
 
               <h3 style={{ fontSize: 17, fontWeight: 800, margin: "0 0 10px", display: "flex", alignItems: "center", gap: 8 }}>
@@ -1260,7 +1315,7 @@ export default function ExamHeroPro() {
                         {new Date(h.at).toLocaleDateString([], { day: "numeric", month: "short" })}, {new Date(h.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                       </div>
                     </div>
-                    <div style={{ fontWeight: 800, color: h.score / h.total >= 0.7 ? C.good : C.gold }}>{h.score}/{h.total}</div>
+                    <div style={{ fontWeight: 800, color: (h.mockScore != null ? h.mockScore / 400 : h.score / h.total) >= 0.7 ? C.good : C.gold }}>{h.mockScore != null ? `${h.mockScore}/400` : `${h.score}/${h.total}`}</div>
                   </div>
                 ))}
               </div>
@@ -1368,6 +1423,7 @@ export default function ExamHeroPro() {
             <Perk on text="Unlimited practice rounds" />
             <Perk on text="Longer rounds: 8 or 12 questions" />
             <Perk on text="AI topic practice on any topic" />
+            <Perk on text="JAMB mock exam: 4 subjects, scored out of 400" />
             <Perk on text="Accuracy breakdown by WAEC, NECO and JAMB" />
 
             <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 16 }}>
@@ -1460,6 +1516,20 @@ export default function ExamHeroPro() {
           ))}
         </div>
         <div style={{ fontSize: 13, color: C.mute, marginBottom: 18 }}>{EXAMS[exam].blurb}</div>
+
+        {exam === "jamb" && (
+          <div style={{ marginBottom: 20, padding: 16, borderRadius: 16, background: `linear-gradient(160deg, ${C.panel2}, ${C.panel})`, border: `1.5px solid ${C.gold}` }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+              <Target size={20} color={C.gold} />
+              <div style={{ fontWeight: 800, fontSize: 18 }}>JAMB mock exam</div>
+              {!premium && <span style={{ marginLeft: "auto", fontSize: 12, fontWeight: 800, color: C.gold, display: "flex", alignItems: "center", gap: 4 }}><Crown size={14} /> Premium</span>}
+            </div>
+            <div style={{ color: C.mute, fontSize: 14, lineHeight: 1.45, marginBottom: 12 }}>
+              English, Mathematics, Science and General Knowledge: {MOCK_PER_SUBJECT} questions each, 30 seconds per question. Scored out of 400.
+            </div>
+            <button onClick={startMock} style={primaryBtn(false)}>Start mock exam</button>
+          </div>
+        )}
 
         <h2 style={{ fontSize: 22, fontWeight: 800, margin: "0 0 12px", letterSpacing: -0.3 }}>Pick a subject</h2>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
