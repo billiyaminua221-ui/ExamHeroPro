@@ -1,4 +1,4 @@
-import { getUser, send } from "./_lib.js";
+import { getUser, send, adminHeaders } from "./_lib.js";
 
 // Lets a signed-in student permanently delete their own account.
 // Removing the login also removes their scores, subscription row and AI usage (the database tables are set to cascade).
@@ -11,10 +11,7 @@ export default async function handler(req, res) {
 
   const r = await fetch(`${process.env.SUPABASE_URL}/auth/v1/admin/users/${user.id}`, {
     method: "DELETE",
-    headers: {
-      apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
-      Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
-    },
+    headers: adminHeaders(),
   });
   if (!r.ok) return send(res, 502, { error: "Could not delete the account. Try again, or contact support." });
   return send(res, 200, { deleted: true });
