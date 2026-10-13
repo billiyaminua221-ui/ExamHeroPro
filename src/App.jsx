@@ -11,9 +11,9 @@ import {
    put secret keys in this file. Secrets go in Vercel (see DEPLOY_GUIDE).
    ===================================================================== */
 const CONFIG = {
-  USE_BACKEND: false,        // set true once Supabase + the /api folder are deployed
-  SUPABASE_URL: "",          // e.g. "https://abcdxyz.supabase.co"
-  SUPABASE_ANON_KEY: "",     // the public "anon" key from Supabase (safe to expose)
+  USE_BACKEND: true,         // set true once Supabase + the /api folder are deployed
+  SUPABASE_URL: "https://hqhplokyrijvwgpgalkm.supabase.co",       // e.g. "https://abcdxyz.supabase.co"
+  SUPABASE_ANON_KEY: "sb_publishable_mXp-FbsmrLkQgmgd06R0zQ_TUSl48gv",     // the public "anon" key from Supabase (safe to expose)
   API_BASE: "",              // "" = same website (correct for Vercel)
   DEV_PREVIEW_PREMIUM: true, // lets you TRY premium screens without paying. Ignored automatically when USE_BACKEND is true.
   LEGAL: {
