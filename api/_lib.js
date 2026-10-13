@@ -26,17 +26,17 @@ export async function getUser(req) {
   return u && u.id ? { id: u.id, email: u.email } : null;
 }
 
-// Database access with the service role key (bypasses row-level security: server only!).
+// Headers for server-only calls. New Supabase "secret" keys (sb_secret_...) must go in the apikey header only;
+// the older service_role key (a long JWT) is also sent as a bearer token.
+export function adminHeaders(extra = {}) {
+  const h = { apikey: SERVICE, "Content-Type": "application/json", ...extra };
+  if (!String(SERVICE).startsWith("sb_")) h.Authorization = `Bearer ${SERVICE}`;
+  return h;
+}
+
+// Database access with the server key (bypasses row-level security: server only!).
 export function admin(path, opts = {}) {
-  return fetch(`${SB}/rest/v1/${path}`, {
-    ...opts,
-    headers: {
-      apikey: SERVICE,
-      Authorization: `Bearer ${SERVICE}`,
-      "Content-Type": "application/json",
-      ...(opts.headers || {}),
-    },
-  });
+  return fetch(`${SB}/rest/v1/${path}`, { ...opts, headers: adminHeaders(opts.headers || {}) });
 }
 
 export async function getPremiumUntil(userId) {
