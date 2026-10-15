@@ -11,3 +11,4 @@ Exam practice app for Nigerian students (WAEC, NECO, JAMB).
 - Edit settings at the top of `src/App.jsx`
 - Server code (payments, AI, accounts check): `api/`
 - Database: `supabase/schema.sql`
+Deployed on Vercel.
