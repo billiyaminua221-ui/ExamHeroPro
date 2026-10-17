@@ -18,7 +18,7 @@ const CONFIG = {
   DEV_PREVIEW_PREMIUM: true, // lets you TRY premium screens without paying. Ignored automatically when USE_BACKEND is true.
   LEGAL: {
     BUSINESS_NAME: "ExamHero Pro", // your name or your registered business name
-    CONTACT_EMAIL: "",             // REQUIRED before launch: an email address students can write to
+    CONTACT_EMAIL: "billiyaminua221@gmail.com",             // REQUIRED before launch: an email address students can write to
     REFUND_DAYS: 3,                // days after paying that a student may ask for a refund
     UPDATED: "11 October 2026",    // change this date whenever you edit the legal text
   },
